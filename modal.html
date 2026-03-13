@@ -469,6 +469,17 @@
   <div class="app-footer">© 2026 Made by Luc Dang from Metaprints</div>
 
 </div>
+
+<!-- IMPORT LOCK OVERLAY -->
+<div id="importOverlay" style="display:none;position:fixed;top:-200px;left:-200px;width:calc(100% + 400px);height:calc(100% + 400px);background:rgba(0,0,0,0.82);z-index:2147483647;align-items:center;justify-content:center;flex-direction:column;gap:16px;cursor:not-allowed;">
+  <div style="background:#1c2030;border:1px solid #334060;border-radius:12px;padding:28px 32px;max-width:320px;text-align:center;cursor:default;" onclick="event.stopPropagation()">
+    <div style="font-size:15px;font-weight:700;color:#fff;margin-bottom:8px;">⏳ Import in progress...</div>
+    <div id="overlayLabel" style="font-size:12px;color:#8a96b0;margin-bottom:20px;">Please wait, do not close this window.</div>
+    <div style="height:4px;background:#252b3a;border-radius:99px;overflow:hidden;">
+      <div id="overlayBar" style="height:100%;background:#3d9fd4;border-radius:99px;transition:width 0.3s;width:0%;box-shadow:0 0 8px #3d9fd4;"></div>
+    </div>
+  </div>
+</div>
 <script>
 var t = TrelloPowerUp.iframe({
   appKey: '56d0d8ee2c0a941cc6499612bf126a9a',
@@ -695,61 +706,79 @@ async function doImport() {
   if(!lc||!cc){alert('Please select List Name and Card Name columns.');return;}
   if(!token){alert('Connect Trello first.');return;}
 
-  var warnFn=function(e){e.preventDefault();e.returnValue='Import is in progress. If you leave, it will be incomplete.';return e.returnValue;};
-  window.addEventListener('beforeunload',warnFn);
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.style.pointerEvents='none';b.style.opacity='0.4';});
+  // Show blocking overlay — prevents clicking away
+  var overlay=document.getElementById('importOverlay');
+  overlay.style.display='flex';
 
   setLoading('importBtn','importSpinner',true);
   document.getElementById('progressWrap').style.display='block';
   setProgress(0,'Preparing...');
+
   try {
     var lr=await fetch('https://api.trello.com/1/boards/'+boardId+'/lists?key='+API_KEY+'&token='+token);
     var existingLists=await lr.json();
     var listMap={};
     existingLists.forEach(function(l){listMap[l.name.trim()]=l.id;});
     var total=csvData.length, done=0, errors=0;
+
     for(var i=0;i<csvData.length;i++){
       var row=csvData[i];
       var lname=(row[lc]||'').trim(), cname=(row[cc]||'').trim();
       if(!lname||!cname){done++;continue;}
-      setProgress(Math.round((done/total)*100),'Card '+(done+1)+'/'+total+': '+cname.substring(0,28));
+
+      var pct=Math.round((done/total)*100);
+      setProgress(pct,'Card '+(done+1)+'/'+total+': '+cname.substring(0,28));
+      document.getElementById('overlayLabel').textContent='('+(done+1)+'/'+total+') '+cname.substring(0,32);
+      document.getElementById('overlayBar').style.width=pct+'%';
+
       if(!listMap[lname]){
         var nl=await fetch('https://api.trello.com/1/lists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:lname,idBoard:boardId,key:API_KEY,token:token})});
         var nld=await nl.json(); listMap[lname]=nld.id;
       }
+
       var urls=[];
       if(ic){
         var v=(row[ic]||'').trim();
         if(v) urls=v.split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
       }
-      if(!urls.length && row['URL']){
+      if(!urls.length&&row['URL']){
         urls=row['URL'].split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
       }
       if(!urls.length) for(var u=1;u<=20;u++){if(row['url'+u])urls.push(row['url'+u].trim());else break;}
+
       try {
         var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],key:API_KEY,token:token})});
         var cd=await cr.json();
-        var coverAttId=null;
+
+        var coverSet = false;
         for(var a=0;a<urls.length;a++){
           var url=urls[a].trim(); if(!url) continue;
-          var attRes=await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,key:API_KEY,token:token})});
-          if(a===0 && attRes.ok){ var attJson=await attRes.json(); coverAttId=attJson.id; }
-        }
-        // Set first image as card cover
-        if(coverAttId){
-          await fetch('https://api.trello.com/1/cards/'+cd.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({cover:{idAttachment:coverAttId,brightness:'dark',size:'normal'},key:API_KEY,token:token})});
+          // Pass setCover:true on first attachment — official Trello API param
+          var attBody = {url:url, key:API_KEY, token:token};
+          if(a === 0) attBody.setCover = true;
+          await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{
+            method:'POST',
+            headers:{'Content-Type':'application/json'},
+            body:JSON.stringify(attBody)
+          });
         }
       } catch(ce){errors++;}
       done++;
     }
+
+    document.getElementById('overlayBar').style.width='100%';
+    document.getElementById('overlayLabel').textContent='Completed!';
+    await new Promise(function(r){setTimeout(r,800);});
+
     setProgress(100,'Done');
     var msg='Created '+(done-errors)+'/'+total+' cards.'+(errors?' ('+errors+' errors)':'');
     showStatus('importStatus','success',msg);
-  } catch(e){ showStatus('importStatus','error','Error: '+e.message); }
+  } catch(e){
+    showStatus('importStatus','error','Error: '+e.message);
+  }
 
-  window.removeEventListener('beforeunload',warnFn);
+  overlay.style.display='none';
   setLoading('importBtn','importSpinner',false);
-  document.querySelectorAll('.tab-btn').forEach(function(b){b.style.pointerEvents='';b.style.opacity='';});
 }
 
 function parseCSVLine(line){var res=[],cur='',inQ=false;for(var i=0;i<line.length;i++){var ch=line[i];if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(ch===','&&!inQ){res.push(cur);cur='';}else cur+=ch;}res.push(cur);return res;}
