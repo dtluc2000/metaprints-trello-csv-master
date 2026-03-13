@@ -477,30 +477,42 @@ var API_KEY = '56d0d8ee2c0a941cc6499612bf126a9a';
 (async function init() {
   try {
     token = await t.get('member', 'private', 'token');
-    if (!token) {
-      document.getElementById('authBox').style.display = 'flex';
-    }
     var board = await t.board('id');
     boardId = board.id;
-    await loadLists();
+    if (!token) {
+      document.getElementById('authBox').style.display = 'flex';
+    } else {
+      await loadLists();
+    }
   } catch(e) { showStatus('exportStatus','error','Failed to load board: '+e.message); }
 })();
 
 async function doAuth() {
   try {
-    var authUrl = 'https://trello.com/1/authorize?expiration=never&name=Metaprints+CSV+Master&scope=read,write&response_type=token&key=' + API_KEY + '&return_url=' + encodeURIComponent(window.location.href) + '&callback_method=postMessage';
-    var authWindow = window.open(authUrl, 'trello-auth', 'width=500,height=600');
+    var authUrl = 'https://trello.com/1/authorize'
+      + '?expiration=never'
+      + '&name=Metaprints+CSV+Master'
+      + '&scope=read%2Cwrite'
+      + '&response_type=token'
+      + '&key=' + API_KEY
+      + '&callback_method=postMessage'
+      + '&return_url=' + encodeURIComponent('https://dtluc2000.github.io/metaprints-trello-csv-master/modal.html');
+
+    var popup = window.open(authUrl, 'trello-auth', 'width=500,height=650,left=200,top=100');
+
     window.addEventListener('message', async function handler(e) {
       if (e.origin !== 'https://trello.com') return;
-      token = e.data;
-      if (token) {
+      var newToken = typeof e.data === 'string' ? e.data : null;
+      if (newToken && newToken.length > 10) {
+        token = newToken;
         await t.set('member', 'private', 'token', token);
         document.getElementById('authBox').style.display = 'none';
         window.removeEventListener('message', handler);
+        if (popup) popup.close();
         await loadLists();
       }
     });
-  } catch(e) { alert('Authentication failed: ' + e.message); }
+  } catch(e) { alert('Auth error: ' + e.message); }
 }
 
 function switchTab(tab) {
