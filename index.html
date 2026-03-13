@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+<script>
+  var t = TrelloPowerUp.iframe();
+
+  TrelloPowerUp.initialize({
+    'board-buttons': function(t, options) {
+      return [{
+        icon: {
+          dark: 'https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/icons/file-spreadsheet.svg',
+          light: 'https://cdn.jsdelivr.net/npm/lucide-static@0.321.0/icons/file-spreadsheet.svg'
+        },
+        text: 'Import / Export CSV',
+        callback: function(t) {
+          return t.modal({
+            url: './modal.html',
+            title: 'Import / Export CSV',
+            fullscreen: false,
+            height: 680
+          });
+        }
+      }];
+    }
+  });
+</script>
+</body>
+</html>
