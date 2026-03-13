@@ -472,11 +472,14 @@
 <script>
 var t = TrelloPowerUp.iframe();
 var token = null, boardId = null, allLists = [], csvData = [], csvHeaders = [];
+var API_KEY = '56d0d8ee2c0a941cc6499612bf126a9a';
 
 (async function init() {
   try {
     token = await t.get('member', 'private', 'token');
-    if (!token) document.getElementById('authBox').style.display = 'flex';
+    if (!token) {
+      document.getElementById('authBox').style.display = 'flex';
+    }
     var board = await t.board('id');
     boardId = board.id;
     await loadLists();
@@ -485,10 +488,19 @@ var token = null, boardId = null, allLists = [], csvData = [], csvHeaders = [];
 
 async function doAuth() {
   try {
-    token = await t.getRestApi().getToken();
-    document.getElementById('authBox').style.display = 'none';
-    await loadLists();
-  } catch(e) { alert('Authentication failed.'); }
+    var authUrl = 'https://trello.com/1/authorize?expiration=never&name=Metaprints+CSV+Master&scope=read,write&response_type=token&key=' + API_KEY + '&return_url=' + encodeURIComponent(window.location.href) + '&callback_method=postMessage';
+    var authWindow = window.open(authUrl, 'trello-auth', 'width=500,height=600');
+    window.addEventListener('message', async function handler(e) {
+      if (e.origin !== 'https://trello.com') return;
+      token = e.data;
+      if (token) {
+        await t.set('member', 'private', 'token', token);
+        document.getElementById('authBox').style.display = 'none';
+        window.removeEventListener('message', handler);
+        await loadLists();
+      }
+    });
+  } catch(e) { alert('Authentication failed: ' + e.message); }
 }
 
 function switchTab(tab) {
@@ -500,7 +512,7 @@ function switchTab(tab) {
 async function loadLists() {
   if (!token||!boardId) return;
   try {
-    var r = await fetch('https://api.trello.com/1/boards/'+boardId+'/lists?token='+token+'&cards=count');
+    var r = await fetch('https://api.trello.com/1/boards/'+boardId+'/lists?key='+API_KEY+'&token='+token+'&cards=count');
     if (!r.ok) throw new Error();
     allLists = await r.json();
     renderLists();
@@ -552,7 +564,7 @@ async function doExport() {
     var rows=[];
     for(var i=0;i<ids.length;i++){
       var listObj=allLists.find(function(l){return l.id===ids[i];});
-      var r=await fetch('https://api.trello.com/1/lists/'+ids[i]+'/cards?token='+token+'&attachments=true');
+      var r=await fetch('https://api.trello.com/1/lists/'+ids[i]+'/cards?key='+API_KEY+'&token='+token+'&attachments=true');
       if(!r.ok) throw new Error('Failed to load cards for "'+listObj.name+'"');
       var cards=await r.json();
       for(var j=0;j<cards.length;j++){
@@ -646,7 +658,7 @@ async function doImport() {
   document.getElementById('progressWrap').style.display='block';
   setProgress(0,'Preparing...');
   try {
-    var lr=await fetch('https://api.trello.com/1/boards/'+boardId+'/lists?token='+token);
+    var lr=await fetch('https://api.trello.com/1/boards/'+boardId+'/lists?key='+API_KEY+'&token='+token);
     var existingLists=await lr.json();
     var listMap={};
     existingLists.forEach(function(l){listMap[l.name.trim()]=l.id;});
@@ -657,7 +669,7 @@ async function doImport() {
       if(!lname||!cname){done++;continue;}
       setProgress(Math.round((done/total)*100),'Card '+(done+1)+'/'+total+': '+cname.substring(0,28));
       if(!listMap[lname]){
-        var nl=await fetch('https://api.trello.com/1/lists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:lname,idBoard:boardId,token:token})});
+        var nl=await fetch('https://api.trello.com/1/lists',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:lname,idBoard:boardId,key:API_KEY,token:token})});
         var nld=await nl.json(); listMap[lname]=nld.id;
       }
       var urls=[];
@@ -668,11 +680,11 @@ async function doImport() {
       }
       if(!urls.length) for(var u=1;u<=20;u++){if(row['url'+u])urls.push(row['url'+u]);else break;}
       try {
-        var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],token:token})});
+        var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],key:API_KEY,token:token})});
         var cd=await cr.json();
         for(var a=0;a<urls.length;a++){
           var url=urls[a].trim(); if(!url) continue;
-          await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,token:token})});
+          await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,key:API_KEY,token:token})});
         }
       } catch(ce){errors++;}
       done++;
