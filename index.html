@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+<script>
+  var WHITE_ICON = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAADOklEQVR42u2V30ukVRjHP+e8rzOv07pMtStbtOvF7miwtOFuMiTpoiyj64YM2GpgDiERKHTRTYQGEYEI0R8Q3RSkg20FXSQNwnThguXFhouRL2EYSGmrqI06M6/veZ8urOnHtjJ123yuzu/nOc/3Oc+BChUqVPi/o46aTCaT0tfXx8LCAuPj4wqgpaVFhoaGWFlZYWRkpLQ/erZRzj33JqoqBEEACkQEk8+x437F95+8rf6VA/X19eK6bqnf39/P5OSk2trakmg0CsDY2Bijo6MK4LGX3pFTiUG8nTsoyz7cJAKAHTnOL4uzzL+WuMuevpcD3d3dAOzu7mKMIZFIEI/HJRqNUigUMMbQ09Pzp6to/L1tguI+QWEPye/CgQcSkP/5B46ff4q6zhfl73bseznQ1dWFiOA4DpZl0dTUhOd5iAi2baO1JhaL8XjjRVn4+pZSSgEK7Rwj9+0c3733Klb4PuqSL3N/4xVMcY+a2CX4vMwIxONxlFJYlgVAQ0MDqVQKpRS2bWOMQWvN1audAFSFHZTSKG1xkNsit+qq7eVb6s6Xn6JDDhIE6KowZUkwMDAgkUgEY0xpzLIswuHwb9L+Ecmnr10DYO3mxwTFfSQwOLVnOPVkUs50vCB111/hYHcbK1TN/qpbXhJOTU1Jb28vvu9j2/aRz6hQLFLtOAqg9V1XCEVQCnSoGqU0xsujwxH8zR+ZHTpfXhK2tbUdJohtMz8/X4pEEAQALC4usr6+DoATDpPqe0Yeuv66VJ88jfje4SGBOWwHhtw3N1kYf7a8wtDR0SG/UywWpb29XTY2NkRExPM8EREZHh6WiYmJ0roPJ96X06m35MqNLbn8wU/yxBufyYkLbfLghXapeeRROcqe/ofig+/7GGNYWloim80q13UxxpS0z2QyzMzMAGCMobX1MmdjMfL7e2it8XY22bj9hdq8nVW51aUji91dAtfW1pZ0n56eBiCbzdLc3IxlWaytrbG8vKx83xcRwbIsTp54AMcCU12D7TjIQeG/1+ZYLCaZTEbS6fRfQpdOp2Vubk46OztL44ODgzI7OyuDz6cE4NLIDbk48pEce/icVH65ChUqVCiXXwH5vHQ3is+E0QAAAABJRU5ErkJggg==';
+  var DARK_ICON  = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAABCGlDQ1BJQ0MgUHJvZmlsZQAAeJxjYGA8wQAELAYMDLl5JUVB7k4KEZFRCuwPGBiBEAwSk4sLGHADoKpv1yBqL+viUYcLcKakFicD6Q9ArFIEtBxopAiQLZIOYWuA2EkQtg2IXV5SUAJkB4DYRSFBzkB2CpCtkY7ETkJiJxcUgdT3ANk2uTmlyQh3M/Ck5oUGA2kOIJZhKGYIYnBncAL5H6IkfxEDg8VXBgbmCQixpJkMDNtbGRgkbiHEVBYwMPC3MDBsO48QQ4RJQWJRIliIBYiZ0tIYGD4tZ2DgjWRgEL7AwMAVDQsIHG5TALvNnSEfCNMZchhSgSKeDHkMyQx6QJYRgwGDIYMZAKbWPz9HbOBQAAAAgUlEQVR42u2Syw0AIQhEhViR/ddAS7snE2J0FwRPzjsZBIZfKQAAcDv09dlae/pbRGhlG+0ztK+GLeIrgT9Riy97xuURtMZzdIfRovjUcYkIrfauqSe68uTgzI53fGqGeGRidGL8nulUS/BOUZaVbN+ANXm4gC40ExxtmUUBAMBdvCNYPB121CDaAAAAAElFTkSuQmCC';
+
+  // Track whether import is running (set by modal via t.set)
+  var MODAL_URL = 'https://dtluc2000.github.io/metaprints-trello-csv-master/modal.html';
+
+  function openModal(t) {
+    return t.modal({
+      url: MODAL_URL,
+      title: 'Metaprints CSV Master',
+      fullscreen: false,
+      height: 700,
+      callback: function(t) {
+        // Called when user tries to close modal via X or Escape or clicking outside
+        // Check if import is running
+        return t.get('board', 'private', 'importRunning').then(function(val) {
+          if (val === true) {
+            // Show confirmation popup
+            return t.popup({
+              type: 'confirm',
+              title: '⚠️ Import in progress',
+              message: 'Import is still running! If you close now, some cards may not be created. Are you sure you want to exit?',
+              confirmText: 'Yes, close anyway',
+              onConfirm: function(t) {
+                return t.set('board', 'private', 'importRunning', false).then(function() {
+                  return t.closeModal();
+                });
+              },
+              onCancel: function(t) {
+                return t.closePopup();
+              },
+              confirmStyle: 'danger'
+            });
+          }
+          // Not importing — close normally
+          return t.closeModal();
+        });
+      }
+    });
+  }
+
+  TrelloPowerUp.initialize({
+    'board-buttons': function(t, options) {
+      return [{
+        icon: { dark: WHITE_ICON, light: DARK_ICON },
+        text: 'CSV Master',
+        callback: function(t) {
+          return openModal(t);
+        }
+      }];
+    }
+  }, {
+    appKey: '56d0d8ee2c0a941cc6499612bf126a9a',
+    appName: 'Metaprints Trello CSV Master'
+  });
+</script>
+</body>
+</html>
