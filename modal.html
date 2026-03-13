@@ -750,16 +750,15 @@ async function doImport() {
         var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],key:API_KEY,token:token})});
         var cd=await cr.json();
 
-        var coverSet = false;
         for(var a=0;a<urls.length;a++){
           var url=urls[a].trim(); if(!url) continue;
-          // Pass setCover:true on first attachment — official Trello API param
-          var attBody = {url:url, key:API_KEY, token:token};
-          if(a === 0) attBody.setCover = true;
-          await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{
-            method:'POST',
-            headers:{'Content-Type':'application/json'},
-            body:JSON.stringify(attBody)
+          // key & token in query string (required by Trello attachment API)
+          // setCover:true on first URL → sets it as card cover automatically
+          var attUrl = 'https://api.trello.com/1/cards/'+cd.id+'/attachments?key='+API_KEY+'&token='+token;
+          await fetch(attUrl, {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({url: url, setCover: a === 0})
           });
         }
       } catch(ce){errors++;}
