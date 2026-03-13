@@ -494,7 +494,9 @@ async function doAuth() {
       + '&name=Metaprints+CSV+Master'
       + '&scope=read%2Cwrite'
       + '&response_type=token'
-      + '&key=' + API_KEY;
+      + '&key=' + API_KEY
+      + '&callback_method=fragment'
+      + '&return_url=' + encodeURIComponent('https://dtluc2000.github.io/metaprints-trello-csv-master/modal.html');
 
     token = await t.authorize(authUrl, { height: 680, width: 580 });
     if (!token) throw new Error('No token returned');

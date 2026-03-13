@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="https://p.trellocdn.com/power-up.min.js"></script>
+</head>
+<body>
+<script>
+  var token = window.location.hash.match(/token=([0-9a-fA-F]+)/);
+  if (token) {
+    token = token[1];
+    var t = TrelloPowerUp.iframe();
+    t.set('member', 'private', 'token', token).then(function() {
+      window.close();
+    });
+  } else {
+    window.close();
+  }
+</script>
+</body>
+</html>
