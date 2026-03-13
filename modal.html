@@ -598,11 +598,25 @@ function processFile(file) {
 }
 
 function parseCSV(text) {
-  var lines=text.split(/\r?\n/).filter(function(l){return l.trim();});
-  if(lines.length<2){alert('File must have at least 1 header row and 1 data row.');return;}
-  csvHeaders=parseCSVLine(lines[0]);
-  csvData=[];
-  for(var i=1;i<lines.length;i++){var v=parseCSVLine(lines[i]),o={};csvHeaders.forEach(function(h,j){o[h]=v[j]||'';});csvData.push(o);}
+  // Remove BOM
+  text = text.replace(/^\uFEFF/, '');
+  // Normalize line endings
+  text = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
+
+  var rows = parseCSVFull(text);
+  if (rows.length < 2) { alert('File must have at least 1 header row and 1 data row.'); return; }
+
+  csvHeaders = rows[0];
+  csvData = [];
+  for (var i = 1; i < rows.length; i++) {
+    var vals = rows[i];
+    // skip empty rows
+    if (vals.every(function(v){ return !v.trim(); })) continue;
+    var obj = {};
+    csvHeaders.forEach(function(h, j) { obj[h] = vals[j] || ''; });
+    csvData.push(obj);
+  }
+
   document.getElementById('step1').style.display='none';
   document.getElementById('step2').style.display='block';
   ['mapList','mapCard','mapDesc','mapImages'].forEach(function(id){
@@ -610,11 +624,36 @@ function parseCSV(text) {
     s.innerHTML='<option value="">— select column —</option>';
     csvHeaders.forEach(function(h){s.innerHTML+='<option value="'+esc(h)+'">'+esc(h)+'</option>';});
   });
-  autoMatch('mapList',['List Name','List','Danh sách']);
-  autoMatch('mapCard',['Card Name','SKU','Name','Tên','Title']);
-  autoMatch('mapDesc',['Card Description','Description','Mô tả','Desc']);
-  autoMatch('mapImages',['Images','Image','urlSource','Attachments Url','url1','Photo','URL']);
+  autoMatch('mapList',['List Name','List']);
+  autoMatch('mapCard',['Card Name','SKU','Name','Title']);
+  autoMatch('mapDesc',['Card Description','Description','Desc']);
+  autoMatch('mapImages',['URL','Images','Image','urlSource','Attachments Url','url1','Photo']);
   updateMappingUI(); updatePreview();
+}
+
+// Full RFC-4180 compliant CSV parser (handles multiline quoted fields)
+function parseCSVFull(text) {
+  var rows = [], row = [], cur = '', inQ = false, i = 0;
+  while (i < text.length) {
+    var ch = text[i];
+    if (inQ) {
+      if (ch === '"') {
+        if (text[i+1] === '"') { cur += '"'; i += 2; continue; } // escaped quote
+        else { inQ = false; i++; continue; } // end quote
+      }
+      cur += ch; i++;
+    } else {
+      if (ch === '"') { inQ = true; i++; }
+      else if (ch === ',') { row.push(cur); cur = ''; i++; }
+      else if (ch === '\n') {
+        row.push(cur); cur = '';
+        rows.push(row); row = []; i++;
+      } else { cur += ch; i++; }
+    }
+  }
+  // last field/row
+  if (cur || row.length) { row.push(cur); rows.push(row); }
+  return rows;
 }
 
 function autoMatch(id,kws) {
@@ -675,25 +714,17 @@ async function doImport() {
       }
       var urls=[];
       if(ic){
-        var v=row[ic]||'';
-        // Support both: single col with comma-separated URLs, or url1/url2/url3 cols
-        if(v.includes('http')) {
-          urls = v.split(',').map(function(u){return u.trim();}).filter(function(u){return u;});
-        }
-        // Also check url1, url2... style cols
-        if(!urls.length){
-          var base=ic.replace(/\d+$/,''),n=2;
-          if(v) urls.push(v);
-          while(row[base+n]!==undefined){if(row[base+n])urls.push(row[base+n].trim());n++;}
+        var v=(row[ic]||'').trim();
+        if(v) {
+          // Split by ", " or "," — handles comma-space separated URLs
+          urls = v.split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
         }
       }
-      // Fallback: auto-detect URL col or url1,url2...
-      if(!urls.length){
-        for(var u=1;u<=20;u++){if(row['url'+u])urls.push(row['url'+u]);else break;}
-      }
+      // Fallback: auto-detect URL col
       if(!urls.length && row['URL']){
-        urls = row['URL'].split(',').map(function(u){return u.trim();}).filter(function(u){return u;});
+        urls = row['URL'].split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
       }
+      if(!urls.length) for(var u=1;u<=20;u++){if(row['url'+u])urls.push(row['url'+u].trim());else break;}
       try {
         var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],key:API_KEY,token:token})});
         var cd=await cr.json();
