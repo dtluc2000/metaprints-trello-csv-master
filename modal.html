@@ -373,13 +373,8 @@
   </div>
 
   <div class="auth-box" id="authBox">
-    <div style="flex:1">
-      <p style="margin-bottom:8px;">Paste your Trello token to connect. <a href="https://trello.com/1/authorize?expiration=never&name=Metaprints+CSV+Master&scope=read,write&response_type=token&key=56d0d8ee2c0a941cc6499612bf126a9a" target="_blank" style="color:#c9a227;">Get token ↗</a></p>
-      <div style="display:flex;gap:8px;">
-        <input id="tokenInput" type="text" placeholder="Paste token here..." style="flex:1;padding:7px 10px;border-radius:6px;border:1px solid #7c5a0a;background:#1c2030;color:#e8ecf4;font-size:12px;font-family:inherit;">
-        <button class="btn-auth" onclick="doAuth()">Connect</button>
-      </div>
-    </div>
+    <p style="flex:1">Connect your Trello account to continue.</p>
+    <button class="btn-auth" onclick="doAuth()">Connect</button>
   </div>
 
   <div class="tabs">
@@ -475,39 +470,35 @@
 
 </div>
 <script>
-var t = TrelloPowerUp.iframe();
+var t = TrelloPowerUp.iframe({
+  appKey: '56d0d8ee2c0a941cc6499612bf126a9a',
+  appName: 'Metaprints Trello CSV Master'
+});
 var token = null, boardId = null, allLists = [], csvData = [], csvHeaders = [];
 var API_KEY = '56d0d8ee2c0a941cc6499612bf126a9a';
 
 (async function init() {
   try {
-    token = await t.get('member', 'private', 'token');
     var board = await t.board('id');
     boardId = board.id;
-    if (!token) {
+    var isAuthorized = await t.getRestApi().isAuthorized();
+    if (!isAuthorized) {
       document.getElementById('authBox').style.display = 'flex';
     } else {
+      token = await t.getRestApi().getToken();
       await loadLists();
     }
   } catch(e) { showStatus('exportStatus','error','Failed to load board: '+e.message); }
 })();
 
 async function doAuth() {
-  var inputToken = document.getElementById('tokenInput').value.trim();
-  if (!inputToken || inputToken.length < 20) {
-    alert('Please paste a valid Trello token.');
-    return;
-  }
   try {
-    // Verify token works
-    var test = await fetch('https://api.trello.com/1/members/me?key=' + API_KEY + '&token=' + inputToken);
-    if (!test.ok) throw new Error('Invalid token');
-    token = inputToken;
-    await t.set('member', 'private', 'token', token);
+    await t.getRestApi().authorize({ scope: 'read,write' });
+    token = await t.getRestApi().getToken();
     document.getElementById('authBox').style.display = 'none';
     await loadLists();
   } catch(e) {
-    alert('Token invalid. Please try again.');
+    showStatus('exportStatus', 'error', 'Auth failed: ' + e.message);
   }
 }
 
