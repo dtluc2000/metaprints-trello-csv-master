@@ -494,25 +494,16 @@ async function doAuth() {
       + '&name=Metaprints+CSV+Master'
       + '&scope=read%2Cwrite'
       + '&response_type=token'
-      + '&key=' + API_KEY
-      + '&callback_method=postMessage'
-      + '&return_url=' + encodeURIComponent('https://dtluc2000.github.io/metaprints-trello-csv-master/modal.html');
+      + '&key=' + API_KEY;
 
-    var popup = window.open(authUrl, 'trello-auth', 'width=500,height=650,left=200,top=100');
-
-    window.addEventListener('message', async function handler(e) {
-      if (e.origin !== 'https://trello.com') return;
-      var newToken = typeof e.data === 'string' ? e.data : null;
-      if (newToken && newToken.length > 10) {
-        token = newToken;
-        await t.set('member', 'private', 'token', token);
-        document.getElementById('authBox').style.display = 'none';
-        window.removeEventListener('message', handler);
-        if (popup) popup.close();
-        await loadLists();
-      }
-    });
-  } catch(e) { alert('Auth error: ' + e.message); }
+    token = await t.authorize(authUrl, { height: 680, width: 580 });
+    if (!token) throw new Error('No token returned');
+    await t.set('member', 'private', 'token', token);
+    document.getElementById('authBox').style.display = 'none';
+    await loadLists();
+  } catch(e) {
+    showStatus('exportStatus', 'error', 'Auth failed: ' + e.message);
+  }
 }
 
 function switchTab(tab) {
