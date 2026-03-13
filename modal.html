@@ -693,7 +693,12 @@ async function doImport() {
   var lc=document.getElementById('mapList').value, cc=document.getElementById('mapCard').value;
   var dc=document.getElementById('mapDesc').value, ic=document.getElementById('mapImages').value;
   if(!lc||!cc){alert('Please select List Name and Card Name columns.');return;}
-  if(!token){alert('Connect Trello trước.');return;}
+  if(!token){alert('Connect Trello first.');return;}
+
+  var warnFn=function(e){e.preventDefault();e.returnValue='Import is in progress. If you leave, it will be incomplete.';return e.returnValue;};
+  window.addEventListener('beforeunload',warnFn);
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.style.pointerEvents='none';b.style.opacity='0.4';});
+
   setLoading('importBtn','importSpinner',true);
   document.getElementById('progressWrap').style.display='block';
   setProgress(0,'Preparing...');
@@ -715,22 +720,24 @@ async function doImport() {
       var urls=[];
       if(ic){
         var v=(row[ic]||'').trim();
-        if(v) {
-          // Split by ", " or "," — handles comma-space separated URLs
-          urls = v.split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
-        }
+        if(v) urls=v.split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
       }
-      // Fallback: auto-detect URL col
       if(!urls.length && row['URL']){
-        urls = row['URL'].split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
+        urls=row['URL'].split(/,\s*/).map(function(u){return u.trim();}).filter(function(u){return u.startsWith('http');});
       }
       if(!urls.length) for(var u=1;u<=20;u++){if(row['url'+u])urls.push(row['url'+u].trim());else break;}
       try {
         var cr=await fetch('https://api.trello.com/1/cards',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({name:cname,desc:dc?(row[dc]||''):'',idList:listMap[lname],key:API_KEY,token:token})});
         var cd=await cr.json();
+        var coverAttId=null;
         for(var a=0;a<urls.length;a++){
           var url=urls[a].trim(); if(!url) continue;
-          await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,key:API_KEY,token:token})});
+          var attRes=await fetch('https://api.trello.com/1/cards/'+cd.id+'/attachments',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({url:url,key:API_KEY,token:token})});
+          if(a===0 && attRes.ok){ var attJson=await attRes.json(); coverAttId=attJson.id; }
+        }
+        // Set first image as card cover
+        if(coverAttId){
+          await fetch('https://api.trello.com/1/cards/'+cd.id,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({cover:{idAttachment:coverAttId,brightness:'dark',size:'normal'},key:API_KEY,token:token})});
         }
       } catch(ce){errors++;}
       done++;
@@ -739,7 +746,10 @@ async function doImport() {
     var msg='Created '+(done-errors)+'/'+total+' cards.'+(errors?' ('+errors+' errors)':'');
     showStatus('importStatus','success',msg);
   } catch(e){ showStatus('importStatus','error','Error: '+e.message); }
+
+  window.removeEventListener('beforeunload',warnFn);
   setLoading('importBtn','importSpinner',false);
+  document.querySelectorAll('.tab-btn').forEach(function(b){b.style.pointerEvents='';b.style.opacity='';});
 }
 
 function parseCSVLine(line){var res=[],cur='',inQ=false;for(var i=0;i<line.length;i++){var ch=line[i];if(ch==='"'){if(inQ&&line[i+1]==='"'){cur+='"';i++;}else inQ=!inQ;}else if(ch===','&&!inQ){res.push(cur);cur='';}else cur+=ch;}res.push(cur);return res;}
