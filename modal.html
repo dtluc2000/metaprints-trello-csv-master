@@ -756,20 +756,47 @@ async function doImport() {
         var coverAttId = null;
         for(var a=0;a<urls.length;a++){
           var url=urls[a].trim(); if(!url) continue;
-          var attRes = await fetch(
-            'https://api.trello.com/1/cards/'+cd.id+'/attachments?key='+API_KEY+'&token='+token,
-            { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:url}) }
-          );
-          if(a===0 && attRes.ok){
-            var attJson = await attRes.json();
-            coverAttId = attJson.id;
+          try {
+            // Fetch the image binary (works for Trello URLs with token in header)
+            var isTrelloUrl = url.includes('trello.com');
+            var fetchHeaders = isTrelloUrl ? {'Authorization': 'OAuth oauth_consumer_key="'+API_KEY+'", oauth_token="'+token+'"'} : {};
+            var imgRes = await fetch(url, {headers: fetchHeaders});
+            if(!imgRes.ok) throw new Error('fetch failed');
+            var blob = await imgRes.blob();
+            // Get filename from URL
+            var fname = url.split('/').pop().split('?')[0] || ('image'+a+'.jpg');
+            if(!fname.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i)) fname += '.jpg';
+            // Upload as multipart/form-data → Trello treats as real file upload → shows preview
+            var fd = new FormData();
+            fd.append('file', blob, fname);
+            fd.append('mimeType', blob.type || 'image/jpeg');
+            fd.append('name', fname);
+            if(a===0) fd.append('setCover', 'true');
+            var attRes = await fetch(
+              'https://api.trello.com/1/cards/'+cd.id+'/attachments?key='+API_KEY+'&token='+token,
+              {method:'POST', body: fd}
+            );
+            if(a===0 && attRes.ok){
+              var attJson = await attRes.json();
+              coverAttId = attJson.id;
+            }
+          } catch(imgErr) {
+            // Fallback: attach as URL link if binary fetch fails (e.g. CORS)
+            var attRes2 = await fetch(
+              'https://api.trello.com/1/cards/'+cd.id+'/attachments?key='+API_KEY+'&token='+token,
+              {method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({url:url})}
+            );
+            if(a===0 && attRes2.ok){
+              var attJson2 = await attRes2.json();
+              coverAttId = attJson2.id;
+            }
           }
         }
-        // Set cover via PUT /cards/{id} with idAttachment
+        // Set cover via PUT if we have an attachment ID
         if(coverAttId){
           await fetch(
             'https://api.trello.com/1/cards/'+cd.id+'?key='+API_KEY+'&token='+token,
-            { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cover:{idAttachment:coverAttId,brightness:'dark',size:'normal'}}) }
+            {method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({cover:{idAttachment:coverAttId,brightness:'dark',size:'normal'}})}
           );
         }
       } catch(ce){errors++;}
